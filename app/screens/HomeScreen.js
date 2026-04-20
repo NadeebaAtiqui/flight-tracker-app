@@ -8,10 +8,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  SafeAreaView,
   PanResponder,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getTrips } from '../utils/api';
 import axios from 'axios';
@@ -27,6 +27,7 @@ export default function HomeScreen({ navigation }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [savedTrips, setSavedTrips] = useState([]);
   const [loadingTrips, setLoadingTrips] = useState(true);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   const swipeAnim = useRef(new Animated.Value(0)).current;
 
@@ -35,12 +36,16 @@ export default function HomeScreen({ navigation }) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) =>
         Math.abs(gestureState.dy) > 5,
+      onPanResponderGrant: () => {
+        setScrollEnabled(false);
+      },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy < 0) {
           swipeAnim.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        setScrollEnabled(true);
         if (gestureState.dy < -SWIPE_THRESHOLD) {
           Animated.timing(swipeAnim, {
             toValue: -TICKET_HEIGHT,
@@ -56,6 +61,13 @@ export default function HomeScreen({ navigation }) {
             useNativeDriver: true,
           }).start();
         }
+      },
+      onPanResponderTerminate: () => {
+        setScrollEnabled(true);
+        Animated.spring(swipeAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
       },
     })
   ).current;
@@ -99,7 +111,7 @@ export default function HomeScreen({ navigation }) {
       setFlightNumber('');
       navigation.navigate('FlightStatus', {
         flightData: response.data,
-        onSave: () => loadTrips(),
+        canSave: true,
       });
     } catch (err) {
       setLoading(false);
@@ -155,7 +167,7 @@ export default function HomeScreen({ navigation }) {
             isTop &&
             navigation.navigate('FlightStatus', {
               flightData: trip,
-              onSave: null,
+              canSave: false,
             })
           }
           style={{ flex: 1 }}
@@ -241,6 +253,7 @@ export default function HomeScreen({ navigation }) {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={scrollEnabled}
       >
         <Text style={styles.greeting}>Good evening ✈</Text>
         <Text style={styles.subtitle}>Your saved flights</Text>
