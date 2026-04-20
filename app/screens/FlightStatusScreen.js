@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { saveTrip } from '../utils/api';
 
 export default function FlightStatusScreen({ route, navigation }) {
   const { flightData, onSave } = route.params;
+  const [saving, setSaving] = useState(false);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -29,20 +33,24 @@ export default function FlightStatusScreen({ route, navigation }) {
     });
   };
 
-  const handleSave = () => {
-    if (onSave) {
-      onSave(flightData);
+  const handleSave = async () => {
+    if (!onSave) return;
+    try {
+      setSaving(true);
+      await saveTrip(flightData);
+      onSave();
       navigation.navigate('Home');
+    } catch (err) {
+      console.error('Failed to save trip:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
 
-      {/* Full ticket */}
       <View style={styles.ticket}>
-
-        {/* Ticket top */}
         <View style={styles.ticketTop}>
           <View style={styles.ticketHeader}>
             <Text style={styles.airlineName}>{flightData.airline}</Text>
@@ -51,11 +59,12 @@ export default function FlightStatusScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Route */}
           <View style={styles.routeRow}>
             <View style={styles.routeAirport}>
               <Text style={styles.iataHero}>{flightData.departure.iata}</Text>
-              <Text style={styles.cityName}>{flightData.departure.airport.split(' ').slice(0, 2).join(' ')}</Text>
+              <Text style={styles.cityName}>
+                {flightData.departure.airport.split(' ').slice(0, 2).join(' ')}
+              </Text>
             </View>
             <View style={styles.routeMiddle}>
               <Text style={styles.flightNumberSmall}>{flightData.flightNumber}</Text>
@@ -64,11 +73,12 @@ export default function FlightStatusScreen({ route, navigation }) {
             </View>
             <View style={[styles.routeAirport, { alignItems: 'flex-end' }]}>
               <Text style={styles.iataHero}>{flightData.arrival.iata}</Text>
-              <Text style={styles.cityName}>{flightData.arrival.airport.split(' ').slice(0, 2).join(' ')}</Text>
+              <Text style={styles.cityName}>
+                {flightData.arrival.airport.split(' ').slice(0, 2).join(' ')}
+              </Text>
             </View>
           </View>
 
-          {/* Times */}
           <View style={styles.timesRow}>
             <View>
               <Text style={styles.timeLabel}>DEPARTS</Text>
@@ -87,14 +97,12 @@ export default function FlightStatusScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Perforation */}
         <View style={styles.perforation}>
           <View style={styles.perforationCircleLeft} />
           <View style={styles.perforationLine} />
           <View style={styles.perforationCircleRight} />
         </View>
 
-        {/* Stub */}
         <View style={styles.ticketStub}>
           <View style={styles.stubRow}>
             <View style={styles.stubItem}>
@@ -117,7 +125,6 @@ export default function FlightStatusScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* Arrival details card */}
       <View style={styles.detailCard}>
         <Text style={styles.detailCardTitle}>Arrival details</Text>
         <View style={styles.detailRow}>
@@ -143,10 +150,16 @@ export default function FlightStatusScreen({ route, navigation }) {
         )}
       </View>
 
-      {/* Buttons */}
       {onSave && (
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>+ Add to Wallet</Text>
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.saveButtonText}>+ Add to Wallet</Text>
+          }
         </TouchableOpacity>
       )}
 

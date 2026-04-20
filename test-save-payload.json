@@ -1,0 +1,3 @@
+{
+  "body": "{\"flightData\":{\"flightNumber\":\"AA1\",\"airline\":\"American Airlines\",\"status\":\"landed\",\"departure\":{\"airport\":\"John F Kennedy International\",\"iata\":\"JFK\",\"scheduled\":\"2026-04-18T07:15:00+00:00\",\"actual\":\"2026-04-18T07:40:00+00:00\",\"terminal\":\"8\",\"gate\":\"4\",\"delay\":null},\"arrival\":{\"airport\":\"Los Angeles International\",\"iata\":\"LAX\",\"scheduled\":\"2026-04-18T10:34:00+00:00\",\"actual\":\"2026-04-18T10:02:00+00:00\",\"terminal\":\"4\",\"gate\":\"43\",\"baggage\":\"T4C2\"}}}"
+}

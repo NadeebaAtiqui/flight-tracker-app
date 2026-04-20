@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,6 +12,8 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { getTrips } from '../utils/api';
 import axios from 'axios';
 
 const TICKET_HEIGHT = 280;
@@ -22,56 +25,8 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [savedTrips, setSavedTrips] = useState([
-    {
-      id: '1',
-      flightNumber: 'AA1',
-      airline: 'American Airlines',
-      status: 'landed',
-      departure: {
-        airport: 'John F Kennedy International',
-        iata: 'JFK',
-        scheduled: '2026-04-18T07:15:00+00:00',
-        actual: '2026-04-18T07:40:00+00:00',
-        terminal: '8',
-        gate: '4',
-        delay: null,
-      },
-      arrival: {
-        airport: 'Los Angeles International',
-        iata: 'LAX',
-        scheduled: '2026-04-18T10:34:00+00:00',
-        actual: '2026-04-18T10:02:00+00:00',
-        terminal: '4',
-        gate: '43',
-        baggage: 'T4C2',
-      },
-    },
-    {
-      id: '2',
-      flightNumber: 'DL204',
-      airline: 'Delta Air Lines',
-      status: 'active',
-      departure: {
-        airport: 'Los Angeles International',
-        iata: 'LAX',
-        scheduled: '2026-04-18T12:00:00+00:00',
-        actual: '2026-04-18T12:00:00+00:00',
-        terminal: '2',
-        gate: 'B14',
-        delay: null,
-      },
-      arrival: {
-        airport: 'Hartsfield Jackson Atlanta International',
-        iata: 'ATL',
-        scheduled: '2026-04-18T19:45:00+00:00',
-        actual: null,
-        terminal: 'S',
-        gate: 'S12',
-        baggage: null,
-      },
-    },
-  ]);
+  const [savedTrips, setSavedTrips] = useState([]);
+  const [loadingTrips, setLoadingTrips] = useState(true);
 
   const swipeAnim = useRef(new Animated.Value(0)).current;
 
@@ -92,10 +47,7 @@ export default function HomeScreen({ navigation }) {
             duration: 250,
             useNativeDriver: true,
           }).start(() => {
-            setActiveIndex(prev => {
-              const next = prev + 1;
-              return next >= 0 ? Math.min(next, 999) : 0;
-            });
+            setActiveIndex(prev => Math.min(prev + 1, 999));
             swipeAnim.setValue(0);
           });
         } else {
@@ -107,6 +59,29 @@ export default function HomeScreen({ navigation }) {
       },
     })
   ).current;
+
+  useEffect(() => {
+    loadTrips();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadTrips();
+    }, [])
+  );
+
+  const loadTrips = async () => {
+    try {
+      setLoadingTrips(true);
+      const trips = await getTrips();
+      setSavedTrips(trips);
+      setActiveIndex(0);
+    } catch (err) {
+      console.error('Failed to load trips:', err);
+    } finally {
+      setLoadingTrips(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!flightNumber.trim()) {
@@ -121,15 +96,10 @@ export default function HomeScreen({ navigation }) {
         { params: { flightIata: flightNumber.toUpperCase() } }
       );
       setLoading(false);
+      setFlightNumber('');
       navigation.navigate('FlightStatus', {
         flightData: response.data,
-        onSave: (flight) => {
-          setSavedTrips(prev => [{
-            ...flight,
-            id: Date.now().toString(),
-          }, ...prev]);
-          setActiveIndex(0);
-        },
+        onSave: () => loadTrips(),
       });
     } catch (err) {
       setLoading(false);
@@ -161,9 +131,6 @@ export default function HomeScreen({ navigation }) {
 
   const renderTicket = (trip, index) => {
     const isTop = index === 0;
-    const animatedStyle = isTop
-      ? { transform: [{ translateY: swipeAnim }] }
-      : {};
 
     return (
       <Animated.View
@@ -179,7 +146,6 @@ export default function HomeScreen({ navigation }) {
               ...(isTop ? [{ translateY: swipeAnim }] : []),
             ],
           },
-          animatedStyle,
         ]}
         {...(isTop ? panResponder.panHandlers : {})}
       >
@@ -194,7 +160,6 @@ export default function HomeScreen({ navigation }) {
           }
           style={{ flex: 1 }}
         >
-          {/* Ticket top */}
           <View style={styles.ticketTop}>
             <View style={styles.ticketHeader}>
               <Text style={styles.airlineName}>{trip.airline}</Text>
@@ -235,14 +200,12 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Perforation */}
           <View style={styles.perforation}>
             <View style={styles.perforationCircleLeft} />
             <View style={styles.perforationLine} />
             <View style={styles.perforationCircleRight} />
           </View>
 
-          {/* Stub */}
           <View style={styles.ticketStub}>
             <View style={styles.stubRow}>
               <View style={styles.stubItem}>
@@ -278,12 +241,10 @@ export default function HomeScreen({ navigation }) {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={true}
       >
         <Text style={styles.greeting}>Good evening ✈</Text>
         <Text style={styles.subtitle}>Your saved flights</Text>
 
-        {/* Search bar */}
         <View style={styles.searchRow}>
           <TextInput
             style={styles.input}
@@ -308,8 +269,14 @@ export default function HomeScreen({ navigation }) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Wallet header */}
-        {savedTrips.length > 0 && (
+        {loadingTrips && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color="#1a1a1a" />
+            <Text style={styles.loadingText}>Loading your wallet...</Text>
+          </View>
+        )}
+
+        {!loadingTrips && savedTrips.length > 0 && (
           <View style={styles.walletHeader}>
             <Text style={styles.walletLabel}>MY WALLET</Text>
             <Text style={styles.walletCount}>
@@ -318,26 +285,25 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Swipe hint */}
-        {visibleTrips.length > 1 && (
+        {!loadingTrips && visibleTrips.length > 1 && (
           <Text style={styles.swipeHint}>↑ Swipe up to see next pass</Text>
         )}
 
-        {/* Stacked tickets */}
-        {savedTrips.length === 0 ? (
+        {!loadingTrips && savedTrips.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🎫</Text>
             <Text style={styles.emptyText}>No saved flights yet</Text>
             <Text style={styles.emptySubtext}>Search for a flight to get started</Text>
           </View>
-        ) : (
+        )}
+
+        {!loadingTrips && visibleTrips.length > 0 && (
           <View style={{ height: stackHeight, position: 'relative' }}>
             {visibleTrips.map((trip, index) => renderTicket(trip, index))}
           </View>
         )}
 
-        {/* Reset stack button when all cards swiped */}
-        {visibleTrips.length === 0 && savedTrips.length > 0 && (
+        {!loadingTrips && visibleTrips.length === 0 && savedTrips.length > 0 && (
           <TouchableOpacity
             style={styles.resetButton}
             onPress={() => setActiveIndex(0)}
@@ -407,6 +373,16 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 13,
     marginBottom: 12,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#aaa',
   },
   walletHeader: {
     flexDirection: 'row',
