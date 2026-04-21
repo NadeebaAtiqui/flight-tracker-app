@@ -12,10 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const TICKET_HEIGHT = SCREEN_HEIGHT * 0.52;
-const PEEK = 36;
-const SWIPE_THRESHOLD = 50;
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+const TICKET_HEIGHT = SCREEN_HEIGHT * 0.62;
+const SWIPE_THRESHOLD = 80;
 
 const MOCK_TRIPS = [
   {
@@ -138,53 +137,137 @@ const MOCK_TRIPS = [
       baggage: null,
     },
   },
+  {
+    id: '6',
+    flightNumber: 'QR702',
+    airline: 'Qatar Airways',
+    status: 'active',
+    departure: {
+      airport: 'Hamad International',
+      iata: 'DOH',
+      scheduled: '2026-04-18T02:00:00+00:00',
+      actual: '2026-04-18T02:10:00+00:00',
+      terminal: '1',
+      gate: 'D8',
+      delay: null,
+    },
+    arrival: {
+      airport: 'Heathrow Airport',
+      iata: 'LHR',
+      scheduled: '2026-04-18T07:30:00+00:00',
+      actual: null,
+      terminal: '4',
+      gate: 'A20',
+      baggage: null,
+    },
+  },
+  {
+    id: '7',
+    flightNumber: 'SQ321',
+    airline: 'Singapore Airlines',
+    status: 'landed',
+    departure: {
+      airport: 'Singapore Changi Airport',
+      iata: 'SIN',
+      scheduled: '2026-04-17T23:00:00+00:00',
+      actual: '2026-04-17T23:05:00+00:00',
+      terminal: '3',
+      gate: 'C22',
+      delay: null,
+    },
+    arrival: {
+      airport: 'Sydney Kingsford Smith',
+      iata: 'SYD',
+      scheduled: '2026-04-18T09:45:00+00:00',
+      actual: '2026-04-18T09:40:00+00:00',
+      terminal: '1',
+      gate: 'B4',
+      baggage: 'B3',
+    },
+  },
+  {
+    id: '8',
+    flightNumber: 'AF007',
+    airline: 'Air France',
+    status: 'delayed',
+    departure: {
+      airport: 'Charles de Gaulle Airport',
+      iata: 'CDG',
+      scheduled: '2026-04-18T10:30:00+00:00',
+      actual: '2026-04-18T11:15:00+00:00',
+      terminal: '2E',
+      gate: 'G6',
+      delay: 45,
+    },
+    arrival: {
+      airport: 'John F Kennedy International',
+      iata: 'JFK',
+      scheduled: '2026-04-18T13:15:00+00:00',
+      actual: null,
+      terminal: '1',
+      gate: null,
+      baggage: null,
+    },
+  },
 ];
 
 export default function HomeScreenTest() {
   const [flightNumber, setFlightNumber] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const [savedTrips] = useState(MOCK_TRIPS);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const swipeAnim = useRef(new Animated.Value(0)).current;
+  const swipeAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const rotate = swipeAnim.x.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+    outputRange: ['-10deg', '0deg', '10deg'],
+    extrapolate: 'clamp',
+  });
+
+  const nextCardScale = swipeAnim.x.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+    outputRange: [1, 0.93, 1],
+    extrapolate: 'clamp',
+  });
+
+  const nextCardOpacity = swipeAnim.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: [1, 0.7, 1],
+    extrapolate: 'clamp',
+  });
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dy) > 5,
-      onPanResponderGrant: () => {
-        setScrollEnabled(false);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          swipeAnim.setValue(gestureState.dy);
-        }
-      },
+        Math.abs(gestureState.dx) > 8,
+      onPanResponderMove: Animated.event(
+        [null, { dx: swipeAnim.x, dy: swipeAnim.y }],
+        { useNativeDriver: false }
+      ),
       onPanResponderRelease: (_, gestureState) => {
-        setScrollEnabled(true);
-        if (gestureState.dy > SWIPE_THRESHOLD) {
+        if (Math.abs(gestureState.dx) > SWIPE_THRESHOLD) {
+          const direction = gestureState.dx > 0 ? 1 : -1;
           Animated.timing(swipeAnim, {
-            toValue: TICKET_HEIGHT,
-            duration: 250,
-            useNativeDriver: true,
+            toValue: { x: direction * SCREEN_WIDTH * 1.4, y: gestureState.dy },
+            duration: 300,
+            useNativeDriver: false,
           }).start(() => {
-            setActiveIndex(prev => Math.max(prev - 1, 0));
-            swipeAnim.setValue(0);
+            setCurrentIndex(prev => (prev + 1) % MOCK_TRIPS.length);
+            swipeAnim.setValue({ x: 0, y: 0 });
           });
         } else {
           Animated.spring(swipeAnim, {
-            toValue: 0,
-            useNativeDriver: true,
+            toValue: { x: 0, y: 0 },
+            friction: 5,
+            useNativeDriver: false,
           }).start();
         }
       },
       onPanResponderTerminate: () => {
-        setScrollEnabled(true);
         Animated.spring(swipeAnim, {
-          toValue: 0,
-          useNativeDriver: true,
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
         }).start();
       },
     })
@@ -220,94 +303,163 @@ export default function HomeScreenTest() {
     });
   };
 
-  const visibleTrips = savedTrips.slice(0, activeIndex + 1);
+  const formatDateShort = (isoString) => {
+    if (!isoString) return 'N/A';
+    const date = new Date(isoString);
+    return date.toLocaleDateString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+    });
+  };
 
-  const renderTicket = (trip, index) => {
-    const isTop = index === activeIndex;
-    const distanceFromTop = activeIndex - index;
+  const generateBars = (id) => {
+    return Array.from({ length: 60 }, (_, i) => {
+      const v = ((id.charCodeAt(0) * 31 + i * 137 + i * i * 7) % 97);
+      return { w: v > 60 ? 3 : v > 30 ? 2 : 1, h: v > 70 ? 36 : v > 40 ? 26 : 18 };
+    });
+  };
+
+  const getTrip = (offset) => {
+    return MOCK_TRIPS[(currentIndex + offset) % MOCK_TRIPS.length];
+  };
+
+  const renderStaticCard = (trip, scale, opacity, offsetY) => {
+    const statusColor = getStatusColor(trip.status);
+    const bars = generateBars(trip.id);
 
     return (
       <Animated.View
-        key={trip.id}
         style={[
-          styles.ticket,
+          styles.card,
           {
-            top: distanceFromTop * PEEK,
-            zIndex: index,
-            height: TICKET_HEIGHT,
-            transform: [
-              ...(isTop ? [{ translateY: swipeAnim }] : []),
-            ],
+            transform: [{ scale }, { translateY: offsetY }],
+            opacity,
+            zIndex: 1,
           },
         ]}
-        {...(isTop ? panResponder.panHandlers : {})}
+      >
+        <View style={styles.barcodeContainer}>
+          {bars.map((b, i) => (
+            <View key={i} style={{ width: b.w, height: b.h, backgroundColor: i % 2 === 0 ? '#1a1a1a' : 'transparent', marginHorizontal: 0.4 }} />
+          ))}
+        </View>
+        <View style={styles.coloredWrapper}>
+          <View style={[styles.ticketHeader, { backgroundColor: statusColor }]}>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.headerPlane}>✈</Text>
+              <View style={styles.iataBox}>
+                <Text style={styles.iataBoxText}>{trip.arrival.iata}</Text>
+              </View>
+            </View>
+            <View style={styles.headerDash} />
+            <Text style={styles.cityHero} numberOfLines={1} adjustsFontSizeToFit>
+              {trip.arrival.airport.split(' ')[0].toUpperCase()}
+            </Text>
+            <View style={{ flex: 1 }} />
+            <Text style={styles.headerFlightNum}>{trip.flightNumber}</Text>
+          </View>
+        </View>
+        <View style={styles.ticketInfo}>
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>FLIGHT</Text>
+            <Text style={styles.infoValue}>{trip.flightNumber}</Text>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>DATE</Text>
+            <Text style={styles.infoValue}>{formatDateShort(trip.departure.scheduled)}</Text>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>GATE</Text>
+            <Text style={styles.infoValue}>{trip.departure.gate || 'N/A'}</Text>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>CLASS</Text>
+            <Text style={styles.infoValue}>ECO</Text>
+          </View>
+        </View>
+        <View style={styles.barcodeContainer}>
+          {bars.map((b, i) => (
+            <View key={i} style={{ width: b.w, height: b.h, backgroundColor: i % 2 === 0 ? '#1a1a1a' : 'transparent', marginHorizontal: 0.4 }} />
+          ))}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderTopCard = () => {
+    const trip = getTrip(0);
+    const statusColor = getStatusColor(trip.status);
+    const bars = generateBars(trip.id);
+
+    return (
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            transform: [
+              { translateX: swipeAnim.x },
+              { translateY: swipeAnim.y },
+              { rotate },
+            ],
+            zIndex: 10,
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
         <TouchableOpacity
           activeOpacity={0.95}
-          onPress={() => isTop && setSelectedTrip(trip)}
+          onPress={() => setSelectedTrip(trip)}
           style={{ flex: 1 }}
         >
-          <View style={styles.ticketBody}>
-            <View style={styles.ticketLeft}>
-              <View>
-                <Text style={styles.flightTicketLabel}>FLIGHT TICKET</Text>
-                <Text style={styles.airlineLabel}>{trip.airline}</Text>
-              </View>
-
-              <View style={styles.routeSection}>
-                <View style={styles.routeItem}>
-                  <Text style={styles.routeLabel}>FROM:</Text>
-                  <Text style={styles.routeIata}>{trip.departure.iata}</Text>
-                  <Text style={styles.routeCity}>
-                    {trip.departure.airport.split(' ').slice(0, 3).join(' ')}
-                  </Text>
-                </View>
-                <View style={styles.routeItem}>
-                  <Text style={styles.routeLabel}>TO:</Text>
-                  <Text style={styles.routeIata}>{trip.arrival.iata}</Text>
-                  <Text style={styles.routeCity}>
-                    {trip.arrival.airport.split(' ').slice(0, 3).join(' ')}
-                  </Text>
-                </View>
-                <View style={styles.routeItem}>
-                  <Text style={styles.routeLabel}>DATE:</Text>
-                  <Text style={styles.routeDate}>
-                    {formatDate(trip.departure.scheduled)}
-                  </Text>
+          <View style={styles.barcodeContainer}>
+            {bars.map((b, i) => (
+              <View key={i} style={{ width: b.w, height: b.h, backgroundColor: i % 2 === 0 ? '#1a1a1a' : 'transparent', marginHorizontal: 0.4 }} />
+            ))}
+          </View>
+          <View style={styles.coloredWrapper}>
+            <View style={[styles.ticketHeader, { backgroundColor: statusColor }]}>
+              <View style={styles.headerTopRow}>
+                <Text style={styles.headerPlane}>✈</Text>
+                <View style={styles.iataBox}>
+                  <Text style={styles.iataBoxText}>{trip.arrival.iata}</Text>
                 </View>
               </View>
-
-              <View style={styles.planeContainer}>
-                <Text style={styles.planeSvg}>✈</Text>
-              </View>
+              <View style={styles.headerDash} />
+              <Text style={styles.cityHero} numberOfLines={1} adjustsFontSizeToFit>
+                {trip.arrival.airport.split(' ')[0].toUpperCase()}
+              </Text>
+              <View style={{ flex: 1 }} />
+              <Text style={styles.headerFlightNum}>{trip.flightNumber}</Text>
             </View>
-
-            <View style={[styles.ticketStrip, { backgroundColor: getStatusColor(trip.status) }]}>
-              <View style={styles.boardingPassContainer}>
-                <Text style={styles.boardingPassText}>BOARDING PASS</Text>
-              </View>
-              <View style={styles.stripFields}>
-                <View style={styles.stripField}>
-                  <Text style={styles.stripFieldLabel}>FLIGHT</Text>
-                  <Text style={styles.stripFieldValue}>{trip.flightNumber}</Text>
-                </View>
-                <View style={styles.stripDivider} />
-                <View style={styles.stripField}>
-                  <Text style={styles.stripFieldLabel}>TIME</Text>
-                  <Text style={styles.stripFieldValue}>{formatTime(trip.departure.scheduled)}</Text>
-                </View>
-                <View style={styles.stripDivider} />
-                <View style={styles.stripField}>
-                  <Text style={styles.stripFieldLabel}>GATE</Text>
-                  <Text style={styles.stripFieldValue}>{trip.departure.gate || 'N/A'}</Text>
-                </View>
-                <View style={styles.stripDivider} />
-                <View style={styles.stripField}>
-                  <Text style={styles.stripFieldLabel}>SEAT</Text>
-                  <Text style={styles.stripFieldValue}>N/A</Text>
-                </View>
-              </View>
+          </View>
+          <View style={styles.ticketInfo}>
+            <View style={styles.infoCol}>
+              <Text style={styles.infoLabel}>FLIGHT</Text>
+              <Text style={styles.infoValue}>{trip.flightNumber}</Text>
             </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.infoCol}>
+              <Text style={styles.infoLabel}>DATE</Text>
+              <Text style={styles.infoValue}>{formatDateShort(trip.departure.scheduled)}</Text>
+            </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.infoCol}>
+              <Text style={styles.infoLabel}>GATE</Text>
+              <Text style={styles.infoValue}>{trip.departure.gate || 'N/A'}</Text>
+            </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.infoCol}>
+              <Text style={styles.infoLabel}>CLASS</Text>
+              <Text style={styles.infoValue}>ECO</Text>
+            </View>
+          </View>
+          <View style={styles.barcodeContainer}>
+            {bars.map((b, i) => (
+              <View key={i} style={{ width: b.w, height: b.h, backgroundColor: i % 2 === 0 ? '#1a1a1a' : 'transparent', marginHorizontal: 0.4 }} />
+            ))}
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -338,7 +490,6 @@ export default function HomeScreenTest() {
               <View style={styles.expandedLeft}>
                 <Text style={styles.flightTicketLabel}>FLIGHT TICKET</Text>
                 <Text style={styles.expandedAirline}>{trip.airline}</Text>
-
                 <View style={styles.expandedRouteSection}>
                   <View style={styles.expandedRouteItem}>
                     <Text style={styles.routeLabel}>FROM:</Text>
@@ -355,11 +506,9 @@ export default function HomeScreenTest() {
                     <Text style={styles.expandedDate}>{formatDate(trip.departure.scheduled)}</Text>
                   </View>
                 </View>
-
                 <View style={styles.planeContainer}>
                   <Text style={styles.planeSvgLarge}>✈</Text>
                 </View>
-
                 {trip.departure.delay && (
                   <View style={styles.delayBanner}>
                     <Text style={styles.delayText}>⚠ Delayed {trip.departure.delay} min</Text>
@@ -467,17 +616,12 @@ export default function HomeScreenTest() {
     );
   };
 
-  const stackHeight = TICKET_HEIGHT + (visibleTrips.length - 1) * PEEK;
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topSection}>
         <View style={styles.testBanner}>
-          <Text style={styles.testBannerText}>🧪 TEST MODE — hardcoded data</Text>
+          <Text style={styles.testBannerText}>🧪 TEST MODE</Text>
         </View>
-        <Text style={styles.greeting}>Good evening ✈</Text>
-        <Text style={styles.subtitle}>Your saved flights</Text>
-
         <View style={styles.searchRow}>
           <TextInput
             style={styles.input}
@@ -492,35 +636,33 @@ export default function HomeScreenTest() {
             <Text style={styles.searchButtonText}>Go</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.walletHeader}>
           <Text style={styles.walletLabel}>MY WALLET</Text>
           <Text style={styles.walletCount}>
-            {activeIndex + 1} of {savedTrips.length} passes
+            {currentIndex + 1} of {MOCK_TRIPS.length} passes
           </Text>
         </View>
+        <Text style={styles.swipeHint}>← Swipe to browse →</Text>
+      </View>
 
-        {savedTrips.length > 1 && (
-          <Text style={styles.swipeHint}>
-            {activeIndex < savedTrips.length - 1
-              ? '↑ Tap "Next" or swipe down for previous'
-              : '↓ Swipe down to go back'}
-          </Text>
+      <View style={styles.stackContainer}>
+        {/* Card 3 — furthest back */}
+        {renderStaticCard(
+          getTrip(2),
+          nextCardScale,
+          new Animated.Value(0.5),
+          new Animated.Value(16)
         )}
+        {/* Card 2 — middle */}
+        {renderStaticCard(
+          getTrip(1),
+          nextCardScale,
+          nextCardOpacity,
+          new Animated.Value(8)
+        )}
+        {/* Card 1 — top, draggable */}
+        {renderTopCard()}
       </View>
-
-      <View style={[styles.stackContainer, { height: stackHeight }]}>
-        {visibleTrips.map((trip, index) => renderTicket(trip, index))}
-      </View>
-
-      {activeIndex < savedTrips.length - 1 && (
-        <TouchableOpacity
-          style={styles.nextButton}
-          onPress={() => setActiveIndex(prev => prev + 1)}
-        >
-          <Text style={styles.nextButtonText}>Next pass ↑</Text>
-        </TouchableOpacity>
-      )}
 
       {renderExpandedTicket()}
     </SafeAreaView>
@@ -534,44 +676,33 @@ const styles = StyleSheet.create({
   },
   topSection: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   testBanner: {
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
-    padding: 8,
+    padding: 6,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   testBannerText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 12,
   },
   searchRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   input: {
     flex: 1,
     backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 11,
     fontSize: 15,
     borderWidth: 1,
     borderColor: '#ddd6cc',
@@ -609,32 +740,149 @@ const styles = StyleSheet.create({
   swipeHint: {
     fontSize: 11,
     color: '#bbb',
+    textAlign: 'center',
     marginTop: 2,
   },
   stackContainer: {
-    position: 'relative',
-    marginHorizontal: 20,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
-  ticket: {
+  card: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: '#f5f5f0',
+    width: SCREEN_WIDTH - 40,
+    height: TICKET_HEIGHT,
+    backgroundColor: '#fff',
     borderRadius: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 6,
     overflow: 'hidden',
   },
-  ticketBody: {
-    flex: 1,
+  barcodeContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
   },
-  ticketLeft: {
+  coloredWrapper: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  ticketHeader: {
     flex: 1,
     padding: 18,
+    borderRadius: 12,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  headerPlane: {
+    fontSize: 28,
+    color: '#fff',
+  },
+  iataBox: {
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  iataBoxText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    letterSpacing: 1,
+  },
+  headerDash: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderStyle: 'dashed',
+    marginBottom: 12,
+  },
+  cityHero: {
+    fontSize: 52,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  headerFlightNum: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'right',
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  ticketInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+  },
+  infoCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  infoDivider: {
+    width: 0.5,
+    height: 28,
+    backgroundColor: '#eee',
+  },
+  infoLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#aaa',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1a1a1a',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#e8e3db',
+    padding: 20,
+  },
+  closeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+  },
+  closeButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  expandedTicket: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  expandedBody: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f0',
+  },
+  expandedLeft: {
+    flex: 1,
+    padding: 20,
     justifyContent: 'space-between',
   },
   flightTicketLabel: {
@@ -644,19 +892,19 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  airlineLabel: {
-    fontSize: 11,
+  expandedAirline: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#999',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
     textTransform: 'uppercase',
-    marginTop: 2,
+    marginTop: 3,
   },
-  routeSection: {
-    marginTop: 12,
-    gap: 10,
+  expandedRouteSection: {
+    marginTop: 16,
+    gap: 14,
   },
-  routeItem: {
+  expandedRouteItem: {
     marginBottom: 2,
   },
   routeLabel: {
@@ -666,40 +914,47 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 1,
   },
-  routeIata: {
-    fontSize: 32,
+  expandedIata: {
+    fontSize: 40,
     fontWeight: '800',
     color: '#1a1a1a',
     letterSpacing: -1,
-    lineHeight: 36,
+    lineHeight: 44,
   },
-  routeCity: {
-    fontSize: 9,
+  expandedAirportName: {
+    fontSize: 10,
     color: '#aaa',
     fontWeight: '500',
   },
-  routeDate: {
-    fontSize: 14,
+  expandedDate: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#1a1a1a',
   },
   planeContainer: {
     alignItems: 'flex-end',
     paddingRight: 8,
-    paddingBottom: 4,
-  },
-  planeSvg: {
-    fontSize: 52,
-    color: '#1a1a1a',
-    opacity: 0.08,
   },
   planeSvgLarge: {
     fontSize: 80,
     color: '#1a1a1a',
     opacity: 0.08,
   },
-  ticketStrip: {
-    width: 64,
+  delayBanner: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#fffbeb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  delayText: {
+    fontSize: 11,
+    color: '#d97706',
+    fontWeight: '700',
+  },
+  expandedStrip: {
+    width: 70,
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 6,
@@ -833,114 +1088,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '800',
-  },
-  nextButton: {
-    position: 'absolute',
-    bottom: 24,
-    alignSelf: 'center',
-    left: '50%',
-    marginLeft: -60,
-    backgroundColor: '#1a1a1a',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#e8e3db',
-    padding: 20,
-  },
-  closeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
-  },
-  closeButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  expandedTicket: {
-    flex: 1,
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  expandedBody: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#f5f5f0',
-  },
-  expandedLeft: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'space-between',
-  },
-  expandedAirline: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#999',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: 3,
-  },
-  expandedRouteSection: {
-    marginTop: 16,
-    gap: 14,
-  },
-  expandedRouteItem: {
-    marginBottom: 2,
-  },
-  expandedIata: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    letterSpacing: -1,
-    lineHeight: 44,
-  },
-  expandedAirportName: {
-    fontSize: 10,
-    color: '#aaa',
-    fontWeight: '500',
-  },
-  expandedDate: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  expandedStrip: {
-    width: 70,
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-  },
-  delayBanner: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: '#fffbeb',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#fde68a',
-  },
-  delayText: {
-    fontSize: 11,
-    color: '#d97706',
-    fontWeight: '700',
   },
 });
